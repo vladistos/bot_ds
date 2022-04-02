@@ -1,3 +1,5 @@
+import json
+
 import discord
 
 
@@ -6,6 +8,6 @@ class Player:
 
     @staticmethod
     def play(voice_client, src):
-        source = discord.FFmpegPCMAudio(executable='C:/Users/vlado/PycharmProjects/bot1/ffmpeg.exe',
+        source = discord.FFmpegPCMAudio(executable=json.load(open('/../config.json'))['Data']['player']['path'],
                                         source=src, **Player.config)
         voice_client.play(source)
