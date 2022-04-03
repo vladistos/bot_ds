@@ -1,0 +1,10 @@
+{
+  "Data": {
+    "discord": {
+      "token": "YOUR DS TOKEN"
+    },
+    "player": {
+      "path": "PATH TO FFMPEG EXECUTABLE"
+    }
+  }
+}
