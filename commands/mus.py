@@ -18,7 +18,7 @@ class MusicCog(commands.Cog):
             Player.play(voice_client, self.url)
 
     class ServerMusicQ:
-        def __init__(self, voice_client=None):
+        def __init__(self, voice_client: discord.voice_client.VoiceClient = None):
             self.q = []
             self.voice_client = voice_client
 
@@ -75,7 +75,9 @@ class MusicCog(commands.Cog):
             variant = emojis[reaction.emoji.name]
             await message.edit(content=f'Выбрано: {names[variant]}')
             self.servers[ctx.guild.id].voice_client = await channel.connect(reconnect=True, timeout=None) \
-                if self.servers[ctx.guild.id].voice_client is None else self.servers[ctx.guild.id].voice_client
+                if self.servers[ctx.guild.id].voice_client is None or \
+                not self.servers[ctx.guild.id].voice_client.is_connected() else self.servers[
+                ctx.guild.id].voice_client
             await message.clear_reactions()
             if skip:
                 await self.skip(ctx)
@@ -130,4 +132,3 @@ class MusicCog(commands.Cog):
                 self.next_track(ctx.guild.id)
             else:
                 await voice_client.disconnect()
-
