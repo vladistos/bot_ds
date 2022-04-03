@@ -107,7 +107,9 @@ class MusicCog(commands.Cog):
         message: discord.Message = await ctx.reply(f'Ищу {" ".join(arg for arg in args)}')
         self.check_guild(ctx.guild.id)
         self.servers[ctx.guild.id].voice_client = await channel.connect(reconnect=True, timeout=None) \
-            if self.servers[ctx.guild.id].voice_client is None else self.servers[ctx.guild.id].voice_client
+            if self.servers[ctx.guild.id].voice_client is None or \
+            not self.servers[ctx.guild.id].voice_client.is_connected() else self.servers[
+            ctx.guild.id].voice_client
         name, url = Youtube.get_with_names(query=' '.join(arg for arg in args), count=1)
         await message.edit(content=f'Включаю {name[0]}')
         if skip:
