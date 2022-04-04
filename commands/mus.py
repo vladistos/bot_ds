@@ -42,8 +42,9 @@ class MusicCog(commands.Cog):
 
     @commands.command('н')
     async def find(self, ctx: commands.Context, *args):
+        args = list(args)
         if '--скип' in args:
-            list(args).remove('--скип')
+            args.remove('--скип')
             skip = True
         else:
             skip = False
@@ -66,11 +67,10 @@ class MusicCog(commands.Cog):
 
         try:
             reaction = await self.bot.wait_for("raw_reaction_add", timeout=10.0, check=check)
-        except Exception:
+        except asyncio.exceptions.TimeoutError:
             await message.edit(content='Время ожидания истекло')
             await message.clear_reactions()
             return
-        print(reaction.emoji)
         if reaction.emoji.name in emojis.keys():
             variant = emojis[reaction.emoji.name]
             await message.edit(content=f'Выбрано: {names[variant]}')
@@ -79,9 +79,9 @@ class MusicCog(commands.Cog):
                 not self.servers[ctx.guild.id].voice_client.is_connected() else self.servers[
                 ctx.guild.id].voice_client
             await message.clear_reactions()
+            self.add_in_q(ctx.guild.id, self.Music(names[variant], urls[variant]))
             if skip:
                 await self.skip(ctx)
-            self.add_in_q(ctx.guild.id, self.Music(names[variant], urls[variant]))
         voice_client = self.servers[ctx.guild.id].voice_client
         while voice_client and (voice_client.is_playing() or voice_client.is_paused()):
             await asyncio.sleep(1)
@@ -94,8 +94,9 @@ class MusicCog(commands.Cog):
 
     @commands.command('п')
     async def play(self, ctx: commands.Context, *args):
+        args = list(args)
         if '--скип' in args:
-            list(args).remove('--скип')
+            args.remove('--скип')
             skip = True
         else:
             skip = False
@@ -112,9 +113,9 @@ class MusicCog(commands.Cog):
             ctx.guild.id].voice_client
         name, url = Youtube.get_with_names(query=' '.join(arg for arg in args), count=1)
         await message.edit(content=f'Включаю {name[0]}')
+        self.add_in_q(ctx.guild.id, self.Music(name[0], url[0]))
         if skip:
             await self.skip(ctx)
-        self.add_in_q(ctx.guild.id, self.Music(name[0], url[0]))
         voice_client = self.servers[ctx.guild.id].voice_client
         while voice_client and (voice_client.is_playing() or voice_client.is_paused()):
             await asyncio.sleep(1)
