@@ -33,6 +33,12 @@ class Youtube:
         return elements, single_element_url
 
     @staticmethod
+    def get_playlist(link, count):
+        with youtube_dl.YoutubeDL(Youtube.format_options) as ydl:
+            elements = ydl.extract_info(link, download=False)
+            elements = elements[:count]
+
+    @staticmethod
     def get_with_names(query, count=10, only_names=False):
         elements, single_element_url = Youtube.search_youtube(query, count=count)
         try:
