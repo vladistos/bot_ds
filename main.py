@@ -1,6 +1,8 @@
 import json
 
 import interactions
+import vk_audio
+from services.vk_audio import VkAudio
 from discord.ext import commands
 import discord
 
@@ -9,16 +11,13 @@ from commands import mus, basic
 
 config_data = json.load(open(file='config.json'))['Data']
 services.player.Player.executable = config_data['player']['path']
+vk_audio_ = VkAudio(login=config_data['vk']['login'], password=config_data['vk']['password'])
 ds_token = config_data['discord']['token']
 
 ds_bot = commands.Bot(command_prefix='!', intents=discord.Intents.all())
-cmnds = interactions.Client(ds_token)
-
-cmnds.load('commands.mus')
 
 
-ds_bot.add_cog(mus.MusicCog(ds_bot))
+ds_bot.add_cog(mus.MusicCog(ds_bot, vk_audio_))
 ds_bot.add_cog(basic.Basic())
 
-# ds_bot.run(ds_token)
-cmnds.start()
+ds_bot.run(ds_token)

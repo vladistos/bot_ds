@@ -3,19 +3,21 @@ import threading
 
 import discord
 import interactions
+import vk_audio
 from discord.ext import commands
 from services.youtube import Youtube
+from services.vk_audio import VkAudio
 from services.player import Player
 
 
-class MusicCog(interactions.Extension):
-    def __init__(self, bot):
+class MusicCog(discord.ext.commands.Cog):
+    def __init__(self, bot, vk_audio_):
         self.bot = bot
+        self.vk_audio = vk_audio_
 
     class YouTubeCommands:
-
         @staticmethod
-        async def yt_find(self, ctx: commands.Context, *args):
+        async def find(self, ctx: commands.Context, *args):
             self.check_guild(ctx.guild.id)
             args = await self.check_args(ctx, *args)
             if not args:
@@ -49,7 +51,7 @@ class MusicCog(interactions.Extension):
                 await self.wait_for_track(ctx)
 
         @staticmethod
-        async def yt_play(self, ctx: commands.Context, *args):
+        async def play(self, ctx: commands.Context, *args):
             self.check_guild(ctx.guild.id)
             args = await self.check_args(ctx, *args)
             if not args:
@@ -64,13 +66,47 @@ class MusicCog(interactions.Extension):
             self.add_in_q(ctx.guild.id, self.Music(name[0], url[0]))
             await self.wait_for_track(ctx)
 
+    class VkMusicCommands:
+        @staticmethod
+        async def play(self, ctx: commands.Context, *args):
+            vk = self.vk_audio
+            count = args[1] if len(args) > 1 else None
+            print(len(args))
+            self.check_guild(ctx.guild.id)
+            args = await self.check_args(ctx, *args)
+            channel = await self.check_voice(ctx)
+            if not (0 < len(args) <= 2):
+                await ctx.reply('Аргументом должна быть только ссылка и колличество треков')
+                return
+            if not channel and args:
+                return
+            message: discord.Message = await ctx.reply(f'Пытаюсь включить плейлист по ссылке {args[0]}')
+            await self.get_guild_voice(ctx.guild.id, channel)
+            playlist = vk.get_vk_playlist_with_link(args[0], count)
+            names_added = []
+            await message.edit(content='Подождите...')
+            while True:
+                song = next(playlist, None)
+                name, url = song or (False, False)
+                if name and url:
+                    names_added.append(name)
+                    self.add_in_q(ctx.guild.id, self.Music(name, url, vk=True))
+                    await message.edit(content=('Добавленные треки:\n' + ("\n".join(song_name for song_name in names_added))))
+                else:
+                    break
+            await self.wait_for_track(ctx)
+
     class Music:
-        def __init__(self, name, url):
+        def __init__(self, name, url, vk=False):
             self.url = url
             self.name = name
+            self.vk = vk
 
         def play(self, voice_client):
-            Player.play_youtube(voice_client, self.url)
+            if not self.vk:
+                Player.play_youtube(voice_client, self.url)
+            else:
+                Player.play_vk(voice_client, self.url)
 
         def __str__(self):
             return '{' + f'"name":{self.name}, "link":{self.url}' + '}'
@@ -154,9 +190,14 @@ class MusicCog(interactions.Extension):
     @commands.command('youtube')
     async def youtube(self, ctx, *args):
         if args[0] == 'search':
-            await MusicCog.YouTubeCommands.yt_find(self, ctx, *args[1:])
+            await MusicCog.YouTubeCommands.find(self, ctx, *args[1:])
         elif args[0] == 'play':
-            await self.YouTubeCommands.yt_play(self, ctx, *args[1:])
+            await self.YouTubeCommands.play(self, ctx, *args[1:])
+
+    @commands.command('vk')
+    async def youtube(self, ctx, *args):
+        if args[0] == 'play':
+            await self.VkMusicCommands.play(self, ctx, *args[1:])
 
     @commands.command('skip')
     async def skip(self, ctx: commands.Context, *args, print_message=True):
@@ -207,8 +248,3 @@ class MusicCog(interactions.Extension):
                not self.servers[ctx.guild.id].voice_client.is_connected() else self.servers[
             ctx.guild.id].voice_client
         self.add_in_q(ctx.guild.id, self.Music(name='a', url=arg))
-
-
-def setup(bot: interactions.Client):
-    print(bot)
-
