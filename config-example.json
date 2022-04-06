@@ -1,0 +1,15 @@
+{
+  "Data": {
+    "discord": {
+      "token": "your ds token"
+    },
+    "vk": {
+      "login": "vk login",
+      "password": "vk password"
+      //2fa auth doesn't work
+    },
+    "player": {
+      "path": "ffmpeg executable path"
+    }
+  }
+}
