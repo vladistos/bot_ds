@@ -1,12 +1,8 @@
 import asyncio as asyncio
-import threading
 
 import discord
-import interactions
-import vk_audio
 from discord.ext import commands
 from services.youtube import Youtube
-from services.vk_audio import VkAudio
 from services.player import Player
 
 
@@ -14,6 +10,8 @@ class MusicCog(discord.ext.commands.Cog):
     def __init__(self, bot, vk_audio_):
         self.bot = bot
         self.vk_audio = vk_audio_
+
+    servers = {}
 
     class YouTubeCommands:
         @staticmethod
@@ -27,8 +25,8 @@ class MusicCog(discord.ext.commands.Cog):
             if not channel:
                 return
             message: discord.Message = await ctx.reply(f'Ищу {" ".join(arg for arg in args)}')
-            names, urls = Youtube.get_with_names(query=' '.join(arg for arg in args), count=5)
-            await message.edit(content=('\n'.join(f'{i + 1} {name}' for i, name in
+            names, urls, duration = Youtube.get_with_names(query=' '.join(arg for arg in args), count=5)
+            await message.edit(content=('\n'.join(f'{i + 1} {name} {duration[i]}' for i, name in
                                                   enumerate(names))) if len(names) > 1 else names[0])
             for emoji in emojis.keys():
                 await message.add_reaction(emoji)
@@ -44,11 +42,10 @@ class MusicCog(discord.ext.commands.Cog):
                 return
             if reaction.emoji.name in emojis.keys():
                 variant = emojis[reaction.emoji.name]
-                await message.edit(content=f'Выбрано: {names[variant]}')
+                await message.edit(content=f'Выбрано: {names[variant]} ({duration[variant]})')
                 await self.get_guild_voice(ctx.guild.id, channel)
                 await message.clear_reactions()
-                self.add_in_q(ctx.guild.id, self.Music(names[variant], urls[variant]))
-                await self.wait_for_track(ctx)
+                self.add_in_q(ctx, MusicCog.Music(names[variant], urls[variant], duration=duration[variant]))
 
         @staticmethod
         async def play(self, ctx: commands.Context, *args):
@@ -61,10 +58,9 @@ class MusicCog(discord.ext.commands.Cog):
                 return
             message: discord.Message = await ctx.reply(f'Ищу {" ".join(arg for arg in args)}')
             await self.get_guild_voice(ctx.guild.id, channel)
-            name, url = Youtube.get_with_names(query=' '.join(arg for arg in args), count=1)
+            name, url, duration = Youtube.get_with_names(query=' '.join(arg for arg in args), count=1)
             await message.edit(content=f'Включаю {name[0]}')
-            self.add_in_q(ctx.guild.id, self.Music(name[0], url[0]))
-            await self.wait_for_track(ctx)
+            self.add_in_q(ctx, self.Music(name[0], url[0], duration=duration[0]))
 
     class VkMusicCommands:
         @staticmethod
@@ -87,20 +83,21 @@ class MusicCog(discord.ext.commands.Cog):
             await message.edit(content='Подождите...')
             while True:
                 song = next(playlist, None)
-                name, url = song or (False, False)
+                name, url, duration = song or (False, False, False)
                 if name and url:
                     names_added.append(name)
-                    self.add_in_q(ctx.guild.id, self.Music(name, url, vk=True))
-                    await message.edit(content=('Добавленные треки:\n' + ("\n".join(song_name for song_name in names_added))))
+                    self.add_in_q(ctx, self.Music(name, url, duration=duration, vk=True))
+                    await message.edit(content=('Добавленные треки:\n' +
+                                                ("\n".join(song_name for song_name in names_added))))
                 else:
                     break
-            await self.wait_for_track(ctx)
 
     class Music:
-        def __init__(self, name, url, vk=False):
+        def __init__(self, name, url, vk=False, duration=None):
             self.url = url
             self.name = name
             self.vk = vk
+            self.duration = duration
 
         def play(self, voice_client):
             if not self.vk:
@@ -109,7 +106,7 @@ class MusicCog(discord.ext.commands.Cog):
                 Player.play_vk(voice_client, self.url)
 
         def __str__(self):
-            return '{' + f'"name":{self.name}, "link":{self.url}' + '}'
+            return '{' + f'"name":{self.name}, "link":{self.url}, "duration":{self.duration}' + '}'
 
     class ServerMusicQ:
         def __init__(self, voice_client: discord.voice_client.VoiceClient = None):
@@ -117,18 +114,19 @@ class MusicCog(discord.ext.commands.Cog):
             self.voice_client = voice_client
             self.now_playing = None
 
-    servers = {}
-
-    def add_in_q(self, serv_id, music):
+    def add_in_q(self, ctx, music):
+        serv_id = ctx.guild.id
         self.servers[serv_id].q.append(music)
         if not self.servers[serv_id].voice_client.is_playing():
-            self.next_track(serv_id)
+            self.next_track(ctx)
 
-    def next_track(self, serv_id):
+    def next_track(self, ctx: discord.ext.commands.Context):
+        serv_id = ctx.guild.id
         music = self.servers[serv_id].q[0]
         music.play(voice_client=self.servers[serv_id].voice_client)
         print(self.servers[serv_id].q[0])
         self.servers[serv_id].now_playing = music.name
+        asyncio.create_task(self.wait_for_track(ctx))
         self.servers[serv_id].q.pop(0)
 
     def check_guild(self, guild_id):
@@ -147,13 +145,15 @@ class MusicCog(discord.ext.commands.Cog):
             return False
 
     async def wait_for_track(self, ctx):
-        voice_client = self.servers[ctx.guild.id].voice_client
-        while voice_client and (voice_client.is_playing() or voice_client.is_paused()):
+        voice_client = ctx.voice_client
+        while voice_client and (voice_client.is_playing()) and not voice_client.is_paused():
             await asyncio.sleep(1)
+            print(True)
         else:
             if voice_client and voice_client.is_connected():
                 if len(self.servers[ctx.guild.id].q) != 0:
-                    self.next_track(ctx.guild.id)
+                    print(False)
+                    self.next_track(ctx)
                 else:
                     await asyncio.sleep(5)
                     await voice_client.disconnect()
@@ -187,6 +187,10 @@ class MusicCog(discord.ext.commands.Cog):
             await ctx.reply('Ошибка! Пустое сообщение')
             return False
 
+    @commands.command('a')
+    async def a(self, ctx, *args):
+        await ctx.reply(eval(' '.join(arg for arg in args)))
+
     @commands.command('youtube')
     async def youtube(self, ctx, *args):
         if args[0] == 'search':
@@ -195,7 +199,7 @@ class MusicCog(discord.ext.commands.Cog):
             await self.YouTubeCommands.play(self, ctx, *args[1:])
 
     @commands.command('vk')
-    async def youtube(self, ctx, *args):
+    async def vk(self, ctx, *args):
         if args[0] == 'play':
             await self.VkMusicCommands.play(self, ctx, *args[1:])
 
@@ -208,12 +212,15 @@ class MusicCog(discord.ext.commands.Cog):
                 voice_client.stop()
                 if print_message:
                     await ctx.reply(f'Пропущен {self.servers[ctx.guild.id].now_playing}')
-                self.next_track(ctx.guild.id)
+                self.next_track(ctx)
             else:
                 voice_client.pause()
                 if print_message:
                     await ctx.reply(f'Пропущен {self.servers[ctx.guild.id].now_playing}')
                 self.servers[ctx.guild.id].now_playing = None
+        else:
+            if len(self.servers[ctx.guild.id].q) != 0:
+                self.next_track(ctx)
 
     @commands.command('skip_all')
     async def skip_all(self, ctx):
@@ -230,10 +237,26 @@ class MusicCog(discord.ext.commands.Cog):
                         if self.servers[ctx.guild.id].now_playing else 'Сейчас ничего не играет')
 
     @commands.command('queue')
-    async def queue(self, ctx):
+    async def queue(self, ctx, *args):
         self.check_guild(ctx)
-        await ctx.reply(('Очередь:\n' + "\n".join(song.name for song in self.servers[ctx.guild.id].q)) if
-                        len(self.servers[ctx.guild.id].q) > 0 else 'Очередь пуста')
+        self.check_guild(ctx.guild.id)
+        if not args:
+            with open('playlist.txt', 'w+', encoding='utf-8') as file:
+                text = ('Очередь:\n' + "\n".join(f'{i + 1}) {song.name} {song.duration}'
+                                                 for i, song in enumerate(self.servers[ctx.guild.id].q))
+                        if len(self.servers[ctx.guild.id].q) > 0 else 'Очередь пуста')
+                file.write(text)
+                file.read()
+                await ctx.reply(file=discord.File('playlist.txt'))
+        elif len(args) == 2 and args[0] == 'next':
+            try:
+                i = int(args[1]) - 1
+                track_q = self.servers[ctx.guild.id].q
+                if len(track_q) > 2 and len(track_q) >= i:
+                    track_q[i], track_q[0] = track_q[0], track_q[i]
+                    await ctx.reply(f'{track_q[0].name} будет сыгран следующим')
+            except ValueError:
+                await ctx.reply('?')
 
     @commands.command('тест')
     async def test(self, ctx, arg):
@@ -247,4 +270,4 @@ class MusicCog(discord.ext.commands.Cog):
             if self.servers[ctx.guild.id].voice_client is None or \
                not self.servers[ctx.guild.id].voice_client.is_connected() else self.servers[
             ctx.guild.id].voice_client
-        self.add_in_q(ctx.guild.id, self.Music(name='a', url=arg))
+        self.add_in_q(ctx, self.Music(name='a', url=arg))

@@ -20,4 +20,5 @@ ds_bot = commands.Bot(command_prefix='!', intents=discord.Intents.all())
 ds_bot.add_cog(mus.MusicCog(ds_bot, vk_audio_))
 ds_bot.add_cog(basic.Basic())
 
-ds_bot.run(ds_token)
+if __name__ == '__main__':
+    ds_bot.run(ds_token)

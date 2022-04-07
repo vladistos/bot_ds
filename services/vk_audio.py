@@ -1,5 +1,6 @@
 import vk_api
 from vk_api import audio
+from services.time_manager import TimeManager
 
 
 class VkAudio:
@@ -9,8 +10,9 @@ class VkAudio:
 
     @staticmethod
     def link_parser(link: str):
-        link = link.replace(
-            'https://vk.com/music/album/' and 'https://vk.com/music/playlist/' and 'https://vk.com/audios', '')
+        link = link.replace('https://vk.com/audios', '')
+        link = link.replace('https://vk.com/music/playlist/', '')
+        link = link.replace('https://vk.com/music/album/', '')
         args = link.split('_')
         for arg in args:
             yield arg
@@ -88,9 +90,12 @@ class VkAudio:
             if song:
                 title = f'{song["artist"]} - {song["title"]}'
                 url = song['url']
+                duration = TimeManager.get_formatted_time(song['duration'])
                 i += 1
                 print(i, count)
-                if count and i == int(count):
+                if count and i == int(count) + 1:
                     break
-                yield title, url
+                yield title, url, duration
+            else:
+                break
 

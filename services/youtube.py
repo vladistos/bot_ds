@@ -1,4 +1,8 @@
+import datetime
+import time
+
 import requests as requests
+from services import time_manager
 import youtube_dl
 
 
@@ -41,10 +45,19 @@ class Youtube:
     @staticmethod
     def get_with_names(query, count=10, only_names=False):
         elements, single_element_url = Youtube.search_youtube(query, count=count)
+        duration = None
         try:
             names = [elements[i]['title'] for i in range(len(elements))]
+            try:
+                duration = [time_manager.TimeManager.get_formatted_time(elements[i]['duration']) for i in range(len(elements))]
+            except KeyError:
+                pass
             elements = [elements[i]['formats'][0]['url'] for i in range(len(elements))]
         except KeyError:
             names = [elements['title']]
             elements = [elements['formats'][0]['url']]
-        return names if only_names else (names, elements)
+            try:
+                duration = [time_manager.TimeManager.get_formatted_time(elements['duration'])]
+            except KeyError:
+                pass
+        return names if only_names else (names, elements, duration)
