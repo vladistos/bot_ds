@@ -1,6 +1,6 @@
 import vk_api
 from vk_api import audio
-from services.time_manager import TimeManager
+from services.utils import TimeManager
 
 
 class VkAudio:

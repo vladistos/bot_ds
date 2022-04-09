@@ -2,7 +2,7 @@ import datetime
 import time
 
 import requests as requests
-from services import time_manager
+from services import utils
 import youtube_dl
 
 
@@ -49,7 +49,7 @@ class Youtube:
         try:
             names = [elements[i]['title'] for i in range(len(elements))]
             try:
-                duration = [time_manager.TimeManager.get_formatted_time(elements[i]['duration']) for i in range(len(elements))]
+                duration = [utils.TimeManager.get_formatted_time(elements[i]['duration']) for i in range(len(elements))]
             except KeyError:
                 pass
             elements = [elements[i]['formats'][0]['url'] for i in range(len(elements))]
@@ -57,7 +57,7 @@ class Youtube:
             names = [elements['title']]
             elements = [elements['formats'][0]['url']]
             try:
-                duration = [time_manager.TimeManager.get_formatted_time(elements['duration'])]
+                duration = [utils.TimeManager.get_formatted_time(elements['duration'])]
             except KeyError:
                 pass
         return names if only_names else (names, elements, duration)

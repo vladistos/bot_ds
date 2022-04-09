@@ -1,8 +1,10 @@
 import asyncio as asyncio
+from io import StringIO
 
 import discord
 from discord.ext import commands
 from services.youtube import Youtube
+from services.utils import ArrayManager
 from services.player import Player
 
 
@@ -112,6 +114,7 @@ class MusicCog(discord.ext.commands.Cog):
         def __init__(self, voice_client: discord.voice_client.VoiceClient = None):
             self.q = []
             self.voice_client = voice_client
+            self.playlist_message = None
             self.now_playing = None
 
     def add_in_q(self, ctx, music):
@@ -119,6 +122,7 @@ class MusicCog(discord.ext.commands.Cog):
         self.servers[serv_id].q.append(music)
         if not self.servers[serv_id].voice_client.is_playing():
             self.next_track(ctx)
+        self.update_q(ctx)
 
     def next_track(self, ctx: discord.ext.commands.Context):
         serv_id = ctx.guild.id
@@ -127,6 +131,7 @@ class MusicCog(discord.ext.commands.Cog):
         print(self.servers[serv_id].q[0])
         self.servers[serv_id].now_playing = music.name
         asyncio.create_task(self.wait_for_track(ctx))
+        self.update_q(ctx)
         self.servers[serv_id].q.pop(0)
 
     def check_guild(self, guild_id):
@@ -144,24 +149,25 @@ class MusicCog(discord.ext.commands.Cog):
             await ctx.send('Вы не находитесь в голосовом канале')
             return False
 
+    def update_q(self, ctx):
+        if self.servers[ctx.guild.id].playlist_message:
+            asyncio.create_task(self.queue(ctx=ctx, message=self.servers[ctx.guild.id].playlist_message))
+
     async def wait_for_track(self, ctx):
         voice_client = ctx.voice_client
-        while voice_client and (voice_client.is_playing()) and not voice_client.is_paused():
+        while voice_client and (voice_client.is_playing()):
             await asyncio.sleep(1)
-            print(True)
         else:
             if voice_client and voice_client.is_connected():
                 if len(self.servers[ctx.guild.id].q) != 0:
-                    print(False)
                     self.next_track(ctx)
                 else:
-                    await asyncio.sleep(5)
-                    await voice_client.disconnect()
+                    return
 
     async def get_guild_voice(self, guild_id, voice_channel):
         self.servers[guild_id].voice_client = await voice_channel.connect(reconnect=True, timeout=None) \
             if self.servers[guild_id].voice_client is None or \
-               not self.servers[guild_id].voice_client.is_connected() else self.servers[guild_id].voice_client
+            not self.servers[guild_id].voice_client.is_connected() else self.servers[guild_id].voice_client
 
     async def check_args(self, ctx, *args):
         args = list(args)
@@ -205,16 +211,20 @@ class MusicCog(discord.ext.commands.Cog):
 
     @commands.command('skip')
     async def skip(self, ctx: commands.Context, *args, print_message=True):
-        voice_client = self.servers[ctx.guild.id].voice_client
+        voice_client: discord.voice_client.VoiceClient = self.servers[ctx.guild.id].voice_client
         print(self.servers[ctx.guild.id].q)
         if voice_client and voice_client.is_playing():
             if len(self.servers[ctx.guild.id].q) != 0:
                 voice_client.stop()
                 if print_message:
                     await ctx.reply(f'Пропущен {self.servers[ctx.guild.id].now_playing}')
-                self.next_track(ctx)
+                print(voice_client.is_playing())
+                if not voice_client.is_playing():
+                    self.next_track(ctx)
             else:
-                voice_client.pause()
+                voice_client.stop()
+                print(self.servers[ctx.guild.id].voice_client)
+
                 if print_message:
                     await ctx.reply(f'Пропущен {self.servers[ctx.guild.id].now_playing}')
                 self.servers[ctx.guild.id].now_playing = None
@@ -236,18 +246,31 @@ class MusicCog(discord.ext.commands.Cog):
         await ctx.reply(f'cейчас играет: {self.servers[ctx.guild.id].now_playing}'
                         if self.servers[ctx.guild.id].now_playing else 'Сейчас ничего не играет')
 
-    @commands.command('queue')
-    async def queue(self, ctx, *args):
+    @commands.command('q')
+    async def queue(self, ctx: discord.ext.commands.Context, *args, message: discord.Message = None):
         self.check_guild(ctx)
         self.check_guild(ctx.guild.id)
-        if not args:
-            with open('playlist.txt', 'w+', encoding='utf-8') as file:
-                text = ('Очередь:\n' + "\n".join(f'{i + 1}) {song.name} {song.duration}'
-                                                 for i, song in enumerate(self.servers[ctx.guild.id].q))
-                        if len(self.servers[ctx.guild.id].q) > 0 else 'Очередь пуста')
-                file.write(text)
-                file.read()
-                await ctx.reply(file=discord.File('playlist.txt'))
+
+        text = ('Очередь:\n' + "\n".join(f'{i + 1}) {song.name} {song.duration}'
+                                         for i, song in enumerate(self.servers[ctx.guild.id].q))
+                if len(self.servers[ctx.guild.id].q) > 0 else 'Очередь пуста')
+
+        if len(args) == 1 and args[0] == 'full':
+            file = StringIO(text)
+            await ctx.reply(file=discord.file.File(file, filename='playlist.txt'))
+
+        elif not args or (len(args) == 1 and int(args[0])):
+            text = text.split('\n')[25:]
+            print(text)
+            if not message:
+                playlist_message: discord.Message = await ctx.reply(
+                    '\n'.join(line for line in text) + ('\n' f'И еще {len(text[25:])}'
+                                            if len(self.servers[ctx.guild.id].q) > 0 and len(text[25:]) > 0 else ''))
+                self.servers[ctx.guild.id].playlist_message = playlist_message
+            else:
+                await message.edit(content='\n'.join(line for line in text) + ('\n' f'И еще {len(text[25:])}'
+                                            if len(self.servers[ctx.guild.id].q) > 0 and len(text[25:]) > 0 else ''))
+
         elif len(args) == 2 and args[0] == 'next':
             try:
                 i = int(args[1]) - 1
@@ -255,6 +278,7 @@ class MusicCog(discord.ext.commands.Cog):
                 if len(track_q) > 2 and len(track_q) >= i:
                     track_q[i], track_q[0] = track_q[0], track_q[i]
                     await ctx.reply(f'{track_q[0].name} будет сыгран следующим')
+                    self.update_q(ctx)
             except ValueError:
                 await ctx.reply('?')
 
