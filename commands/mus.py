@@ -193,10 +193,6 @@ class MusicCog(discord.ext.commands.Cog):
             await ctx.reply('Ошибка! Пустое сообщение')
             return False
 
-    @commands.command('a')
-    async def a(self, ctx, *args):
-        await ctx.reply(eval(' '.join(arg for arg in args)))
-
     @commands.command('youtube')
     async def youtube(self, ctx, *args):
         if args[0] == 'search':
@@ -281,17 +277,3 @@ class MusicCog(discord.ext.commands.Cog):
                     self.update_q(ctx)
             except ValueError:
                 await ctx.reply('?')
-
-    @commands.command('тест')
-    async def test(self, ctx, arg):
-        self.check_guild(ctx.guild.id)
-        if ctx.author.voice:
-            channel = ctx.author.voice.channel
-        else:
-            await ctx.send('Вы не находитесь в голосовом канале')
-            return
-        self.servers[ctx.guild.id].voice_client = await channel.connect(reconnect=True, timeout=None) \
-            if self.servers[ctx.guild.id].voice_client is None or \
-               not self.servers[ctx.guild.id].voice_client.is_connected() else self.servers[
-            ctx.guild.id].voice_client
-        self.add_in_q(ctx, self.Music(name='a', url=arg))
