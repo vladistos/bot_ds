@@ -90,7 +90,8 @@ class MusicCog(discord.ext.commands.Cog):
                     names_added.append(name)
                     self.add_in_q(ctx, self.Music(name, url, duration=duration, vk=True))
                     await message.edit(content=('Добавленные треки:\n' +
-                                                ("\n".join(song_name for song_name in names_added))))
+                                                ("\n".join(song_name for song_name in names_added[:25])) +
+                                                (f' и еще {len(names_added[25:])}' if len(names_added) > 25 else '')))
                 else:
                     break
 
@@ -256,16 +257,16 @@ class MusicCog(discord.ext.commands.Cog):
             await ctx.reply(file=discord.file.File(file, filename='playlist.txt'))
 
         elif not args:
-            text = text.split('\n')[:25]
+            text = text.split('\n')
             print(text)
             if not message:
                 playlist_message: discord.Message = await ctx.reply(
-                    '\n'.join(line for line in text) + ('\n' f'И еще {len(text[25:])}'
-                                            if len(self.servers[ctx.guild.id].q) > 0 and len(text[25:]) > 0 else ''))
+                    '\n'.join(line for line in text[:25]) + ('\n' f'И еще {len(text[25:])}'
+                                            if len(text) > 25 else ''))
                 self.servers[ctx.guild.id].playlist_message = playlist_message
             else:
-                await message.edit(content='\n'.join(line for line in text) + ('\n' f'И еще {len(text[25:])}'
-                                            if len(self.servers[ctx.guild.id].q) > 0 and len(text[25:]) > 0 else ''))
+                await message.edit(content='\n'.join(line for line in text[:25]) + ('\n' f'И еще {len(text[25:])}'
+                                            if len(text) > 25 else ''))
 
         elif len(args) == 2 and args[0] == 'next':
             try:
@@ -277,3 +278,17 @@ class MusicCog(discord.ext.commands.Cog):
                     self.update_q(ctx)
             except ValueError:
                 await ctx.reply('?')
+
+    @commands.command('тест')
+    async def test(self, ctx, arg):
+        self.check_guild(ctx.guild.id)
+        if ctx.author.voice:
+            channel = ctx.author.voice.channel
+        else:
+            await ctx.send('Вы не находитесь в голосовом канале')
+            return
+        self.servers[ctx.guild.id].voice_client = await channel.connect(reconnect=True, timeout=None) \
+            if self.servers[ctx.guild.id].voice_client is None or \
+               not self.servers[ctx.guild.id].voice_client.is_connected() else self.servers[
+            ctx.guild.id].voice_client
+        self.add_in_q(ctx, self.Music(name='a', url=arg))
