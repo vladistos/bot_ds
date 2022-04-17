@@ -62,7 +62,7 @@ class MusicCog(discord.ext.commands.Cog):
             await self.get_guild_voice(ctx.guild.id, channel)
             name, url, duration = Youtube.get_with_names(query=' '.join(arg for arg in args), count=1)
             await message.edit(content=f'Включаю {name[0]}')
-            self.add_in_q(ctx, self.Music(name[0], url[0], duration=duration[0]))
+            self.add_in_q(ctx, self.Music(name[0], url[0], duration=duration[0] if duration else None))
 
     class VkMusicCommands:
         @staticmethod
@@ -259,8 +259,8 @@ class MusicCog(discord.ext.commands.Cog):
             file = StringIO(text)
             await ctx.reply(file=discord.file.File(file, filename='playlist.txt'))
 
-        elif not args or (len(args) == 1 and int(args[0])):
-            text = text.split('\n')[25:]
+        elif not args:
+            text = text.split('\n')[:25]
             print(text)
             if not message:
                 playlist_message: discord.Message = await ctx.reply(

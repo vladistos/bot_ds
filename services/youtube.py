@@ -58,6 +58,6 @@ class Youtube:
             elements = [elements['formats'][0]['url']]
             try:
                 duration = [utils.TimeManager.get_formatted_time(elements['duration'])]
-            except KeyError:
+            except (KeyError, TypeError):
                 pass
         return names if only_names else (names, elements, duration)

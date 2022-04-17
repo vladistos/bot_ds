@@ -1,6 +1,7 @@
 import json
 
 import interactions
+import vk_api
 import vk_audio
 from services.vk_audio import VkAudio
 from discord.ext import commands
@@ -11,6 +12,7 @@ from commands import mus, basic
 
 config_data = json.load(open(file='config.json'))['Data']
 services.player.Player.executable = config_data['player']['path']
+print(config_data['vk']['login'])
 vk_audio_ = VkAudio(login=config_data['vk']['login'], password=config_data['vk']['password'])
 ds_token = config_data['discord']['token']
 
