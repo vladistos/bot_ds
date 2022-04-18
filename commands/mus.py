@@ -276,7 +276,7 @@ class MusicCog(discord.ext.commands.Cog):
                     track_q[i], track_q[0] = track_q[0], track_q[i]
                     await ctx.reply(f'{track_q[0].name} будет сыгран следующим')
                     self.update_q(ctx)
-            except ValueError:
+            except (ValueError, IndexError):
                 await ctx.reply('?')
 
     @commands.command('тест')
