@@ -4,7 +4,6 @@ from io import StringIO
 import discord
 from discord.ext import commands
 from services.youtube import Youtube
-from services.utils import ArrayManager
 from services.player import Player
 
 
